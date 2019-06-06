@@ -2,6 +2,8 @@ import os
 import time
 import typing
 import uuid
+import re
+from fnmatch import fnmatch
 
 from mitmproxy import certs
 from mitmproxy import exceptions
@@ -178,6 +180,8 @@ class ServerConnection(tcp.TCPClient, stateobject.StateObject):
         timestamp_tls_setup: TLS established timestamp
         timestamp_end: Connection end timestamp
     """
+    priority_path_regex = re.compile("^(\\d+)-")
+    
 
     def __init__(self, address, source_address=None, spoof_source_address=None):
         tcp.TCPClient.__init__(self, address, source_address, spoof_source_address)
@@ -282,11 +286,28 @@ class ServerConnection(tcp.TCPClient, stateobject.StateObject):
             if os.path.isfile(client_certs):
                 client_cert = client_certs
             else:
-                path = os.path.join(
-                    client_certs,
-                    (sni or self.address[0].encode("idna").decode()) + ".pem"
-                )
-                if os.path.exists(path):
+                address_to_check = (sni or self.address[0].encode("idna").decode())
+                
+                pem_files = []
+                for posible_file in os.listdir(client_certs):
+                    if len(posible_file) > 4 and posible_file[-4]==".pem":
+                        continue
+                    posible_file = posible_file[:-4]
+                    
+                    match = ServerConnection.priority_path_regex.match(posible_file)
+                    priority = int(match.group(1)) if match else 10000
+                    
+                    pem_files.append((priority, posible_file))
+                    
+                pem_files = sorted(pem_files, lambda tup: tup[0])
+                
+                path = None
+                for pem_file in pem_files:
+                    if fnmatch.fnmatch(address_to_check, pem_file):
+                        path = os.path.join(client_certs, pem_file + ".pem")
+                        break
+                
+                if path and os.path.exists(path):
                     client_cert = path
 
         self.convert_to_tls(cert=client_cert, sni=sni, **kwargs)
