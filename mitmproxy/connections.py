@@ -290,7 +290,7 @@ class ServerConnection(tcp.TCPClient, stateobject.StateObject):
                 
                 pem_files = []
                 for posible_file in os.listdir(client_certs):
-                    if len(posible_file) > 4 and posible_file[-4]==".pem":
+                    if len(posible_file) <= 4 or posible_file[-4] != ".pem":
                         continue
                     posible_file = posible_file[:-4]
                     
