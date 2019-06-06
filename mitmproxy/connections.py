@@ -290,21 +290,22 @@ class ServerConnection(tcp.TCPClient, stateobject.StateObject):
                 
                 pem_files = []
                 for posible_file in os.listdir(client_certs):
-                    if len(posible_file) <= 4 or posible_file[-4] != ".pem":
+                    if len(posible_file) <= 4 or posible_file[-4:] != ".pem":
                         continue
-                    posible_file = posible_file[:-4]
+                    glob = posible_file[:-4]
                     
-                    match = ServerConnection.priority_path_regex.match(posible_file)
+                    match = ServerConnection.priority_path_regex.match(glob)
                     priority = int(match.group(1)) if match else 10000
+                    glob = posible_file[len(match.group(0)):] if match else posible_file
                     
-                    pem_files.append((priority, posible_file))
+                    pem_files.append((priority, posible_file, glob))
                     
-                pem_files = sorted(pem_files, lambda tup: tup[0])
+                pem_files = sorted(pem_files, key=lambda tup: tup[0])
                 
                 path = None
                 for pem_file in pem_files:
-                    if fnmatch.fnmatch(address_to_check, pem_file):
-                        path = os.path.join(client_certs, pem_file + ".pem")
+                    if fnmatch(address_to_check, pem_file[2]):
+                        path = os.path.join(client_certs, pem_file[1])
                         break
                 
                 if path and os.path.exists(path):
